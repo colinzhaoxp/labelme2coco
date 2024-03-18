@@ -106,7 +106,8 @@ class labelme2coco(object):
 
         if shape_type == 'polygon':
             #分割图像bbox(0,0)坐标和图像高宽
-            annotation['bbox'] = [0.0, 0.0, self.height, self.width]
+            new_points = self.points_seg2bbox(points)
+            annotation['bbox'] = list(map(float, self.getbbox(new_points)))
             annotation['segmentation'] = [np.asarray(points).flatten().tolist()]
 
         annotation['category_id'] = self.getcatid(label)
@@ -166,6 +167,16 @@ class labelme2coco(object):
 
         json.dump(self.data_coco, open(self.save_json_path, 'w', encoding='utf-8'), indent=4, separators=(',', ': '), cls=MyEncoder)
 
+    def points_seg2bbox(self, points):
+        xs = []
+        ys = []
+        for point in points:
+            xs.append(point[0])
+            ys.append(point[1])
+        xs.sort()
+        ys.sort()
+        new_poinits = [[xs[0], ys[len(ys)-1]], [xs[len(xs)-1], ys[0]]]
+        return new_poinits
 
 # type check when save json files
 class MyEncoder(json.JSONEncoder):
@@ -180,7 +191,8 @@ class MyEncoder(json.JSONEncoder):
             return super(MyEncoder, self).default(obj)
 
 
+
 if __name__ == "__main__":
-    labelme_folder = r"E:\zxp7\Desktop\test\car"
-    save_json_path = r"E:\zxp7\Desktop\test\instances_train2017.json"
+    labelme_folder = "tests/train2017/labelme_annot"
+    save_json_path = "tests/train2017/test_coco.json"
     labelme2coco(labelme_folder, save_json_path)
