@@ -20,6 +20,7 @@ class labelme2coco(object):
         self.annotations = []
         self.de_label = []
         self.se_label = []
+        self.ty_label = []
         self.annID = 1
         self.height = 0
         self.width = 0
@@ -55,6 +56,10 @@ class labelme2coco(object):
                             self.categories.append(self.category(label, shape_type))
                             self.se_label.append(label)
 
+                    if shape_type == 'null':
+                        if label not in self.ty_label:
+                            self.categories.append(self.category(label, shape_type))
+                            self.ty_label.append(label)
                     points = shapes['points']
                     self.annotations.append(self.annotation(points, label, num, shape_type))
                     self.annID += 1
@@ -84,6 +89,8 @@ class labelme2coco(object):
             category['id'] = int(len(self.de_label) + 101)
         if shape_type == 'polygon':
             category['id'] = int(len(self.se_label) + 201)
+        if shape_type == 'null':
+            category['id'] = int(len(self.se_label) + 1)
         category['name'] = label
 
         return category
@@ -105,9 +112,19 @@ class labelme2coco(object):
             annotation['segmentation'] = [np.asarray(points).flatten().tolist()]
 
         if shape_type == 'polygon':
-            #分割图像bbox(0,0)坐标和图像高宽
             new_points = self.points_seg2bbox(points)
             annotation['bbox'] = list(map(float, self.getbbox(new_points)))
+            annotation['segmentation'] = [np.asarray(points).flatten().tolist()]
+
+        if shape_type == 'null':
+            new_poinits = [[1, points[1][1]-1], [points[1][0]-1, points[1][1]-1]]
+            annotation['bbox'] = list(map(float, self.getbbox(new_poinits)))
+
+            # coarsely from bbox to segmentation
+            x = annotation['bbox'][0]
+            y = annotation['bbox'][1]
+            w = annotation['bbox'][2]
+            h = annotation['bbox'][3]
             annotation['segmentation'] = [np.asarray(points).flatten().tolist()]
 
         annotation['category_id'] = self.getcatid(label)
