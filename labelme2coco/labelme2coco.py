@@ -8,7 +8,7 @@ from labelme2coco.image_utils import read_image_shape_as_dict
 
 
 class labelme2coco(object):
-    def __init__(self, labelme_folder='', save_json_path='./new.json'):
+    def __init__(self, labelme_folder='', save_json_path='./new.json', transfer_types = [0, 1, 2]):
         """
         Args:
             labelme_folder: folder that contains labelme annotations and image files
@@ -18,50 +18,144 @@ class labelme2coco(object):
         self.images = []
         self.categories = []
         self.annotations = []
-        self.de_label = []
-        self.se_label = []
-        self.ty_label = []
+        self.det_labels = []
+        self.seg_labels = []
+        self.class_labels = []
+        self.label_list = []
         self.annID = 1
         self.height = 0
         self.width = 0
-
+        self.directoryList = []
+        self.num = 0
+        self.labelme_folder = labelme_folder
+        self.class_flage = 0
+        self.det_flage = 0
+        self.seg_flage = 0
         # create save dir
         save_json_dir = os.path.dirname(save_json_path)
         create_dir(save_json_dir)
+        contents = os.listdir(labelme_folder)
+        # 通过transfer_types判断进行那种标签转换
+        # get label from type file, Classification.txt, Detection.txt, Segmentation.txt
+        if 0 in transfer_types:
+            self.class_flage = 1
+            if 'Classification.txt' not in contents:
+                print("Classification.txt does not exist")
+            else:
+                with open(os.path.join(labelme_folder, 'Classification.txt'), 'r') as file:
+                    for line in file:
+                        self.class_labels.append(line.strip())
+        if 1 in transfer_types:
+            self.det_flage = 1
+            if 'Detection.txt' not in contents:
+                print("Detection.txt does not exist")
+            else:
+                with open(os.path.join(labelme_folder, 'Detection.txt'), 'r') as file:
+                    for line in file:
+                        self.det_labels.append(line.strip())
+        if 2 in transfer_types:
+            self.seg_flage = 1
+            if 'Segmentation.txt' not in contents:
+                print("Segmentation.txt does not exist")
+            else:
+                with open(os.path.join(labelme_folder, 'Segmentation.txt'), 'r') as file:
+                    for line in file:
+                        self.seg_labels.append(line.strip())
 
-        # get json list
-        _, labelme_json = list_jsons_recursively(labelme_folder)
-        self.labelme_json = labelme_json
-
+        # # get classification image directory
+        # for item in contents:
+        #     full_path = os.path.join(labelme_folder, item)
+        #     # if os.path.isdir(full_path):
+        #     # save child directory name, directory name is classification label
+        #     #     self.directoryList.append(labelme_folder + "/" + item)
+        #
+        #     # get label from type file, Classification.txt, Detection.txt, Segmentation.txt
+        #     if os.path.isfile(full_path):
+        #         if item == 'Classification.txt':
+        #             with open(full_path, 'r') as file:
+        #                 for line in file:
+        #                     self.class_labels.append(line.strip())
+        #         if item == 'Detection.txt':
+        #             with open(full_path, 'r') as file:
+        #                 for line in file:
+        #                     self.det_labels.append(line.strip())
+        #         if item == 'Segmentation.txt':
+        #             with open(full_path, 'r') as file:
+        #                 for line in file:
+        #                     self.seg_labels.append(line.strip())
         self.save_json()
 
-    def data_transfer(self):
-        for num, json_path in enumerate(self.labelme_json):
+    #transfer classification label
+    def classification_label_transfer(self):
+        for class_label in self.class_labels:
+            # 遍历标签中的所有标签
+            label = class_label
+            dir = os.path.join(self.labelme_folder, class_label)
+            for filename in os.listdir(dir):
+                # 判断是否为图片文件，这里假设是.jpg格式，可以根据实际需求修改
+                if filename.endswith('.jpg') or filename.endswith('.png'):  # 添加其他扩展名如 '.jpeg', '.gif', '.bmp' 等
+                    img_path = os.path.join(dir, filename)
+                    image = self.get_image(img_path, self.num)
+                    self.images.append(image)
+                    shape_type = 'null'
+                    points = [[0, self.height], [self.width, self.height]]
+                    if label not in self.label_list:
+                        self.categories.append(self.category(label))
+                        self.label_list.append(label)
+                    self.annotations.append(self.annotation(points, label, self.num, shape_type))
+                    self.annID += 1
+                    self.num += 1
+
+    def detection_label_transfer(self):
+        for det_label in self.det_labels:
+            # 遍历标签中的所有标签
+            det_dir = os.path.join(self.labelme_folder, det_label)
+        # get json list
+        _, labelme_json = list_jsons_recursively(det_dir)
+        self.data_transfer(labelme_json)
+
+    def segmentation_label_transfer(self):
+        for seg_label in self.seg_labels:
+            # 遍历标签中的所有标签
+            seg_dir = os.path.join(self.labelme_folder, seg_label)
+            # get json list
+        _, labelme_json = list_jsons_recursively(seg_dir)
+        self.data_transfer(labelme_json)
+
+
+    def data_transfer(self, labelme_json):
+        for json_path in labelme_json:
             with open(json_path, 'r') as fp:
+                self.num += 1
                 # load json
                 data = json.load(fp)
 #                (prefix, res) = os.path.split(json_path)
 #                (file_name, extension) = os.path.splitext(res)
-                self.images.append(self.image(data, num, json_path))
+                self.images.append(self.image(data, self.num, json_path))
                 for shapes in data['shapes']:
                     label = shapes['label']
                     shape_type = shapes['shape_type']
-                    if shape_type == 'rectangle':
-                        if label not in self.de_label:
-                            self.categories.append(self.category(label, shape_type))
-                            self.de_label.append(label)
+                    # if shape_type == 'rectangle':
+                    #     if label not in self.de_label:
+                    #         self.categories.append(self.category(label, shape_type))
+                    #         self.de_label.append(label)
+                    #
+                    # if shape_type == 'polygon':
+                    #     if label not in self.se_label:
+                    #         self.categories.append(self.category(label, shape_type))
+                    #         self.se_label.append(label)
+                    #
+                    # if shape_type == 'null':
+                    #     if label not in self.class_label:
+                    #         self.categories.append(self.category(label, shape_type))
+                    #         self.class_label.append(label)
+                    # 将label插入labe List
+                    if label not in self.label_list:
+                        self.categories.append(self.category(label))
+                        self.label_list.append(label)
 
-                    if shape_type == 'polygon':
-                        if label not in self.se_label:
-                            self.categories.append(self.category(label, shape_type))
-                            self.se_label.append(label)
-
-                    if shape_type == 'null':
-                        if label not in self.ty_label:
-                            self.categories.append(self.category(label, shape_type))
-                            self.ty_label.append(label)
                     points = shapes['points']
-                    self.annotations.append(self.annotation(points, label, num, shape_type))
+                    self.annotations.append(self.annotation(points, label, self.num, shape_type))
                     self.annID += 1
 
     def image(self, data, num, json_path):
@@ -69,6 +163,11 @@ class labelme2coco(object):
         # get image path
         _, img_extension = os.path.splitext(data["imagePath"])
         image_path = json_path.replace(".json", img_extension)
+
+        return self.get_image(image_path, num)
+
+    def get_image(self, image_path, num):
+        image = {}
         img_shape = read_image_shape_as_dict(image_path)
         height, width = img_shape['height'], img_shape['width']
 
@@ -82,15 +181,16 @@ class labelme2coco(object):
 
         return image
 
-    def category(self, label, shape_type):
+    def category(self, label):
         category = {}
         category['supercategory'] = label
-        if shape_type == 'rectangle':
-            category['id'] = int(len(self.de_label) + 101)
-        if shape_type == 'polygon':
-            category['id'] = int(len(self.se_label) + 201)
-        if shape_type == 'null':
-            category['id'] = int(len(self.se_label) + 1)
+        category['id'] = int(len(self.label_list) + 1)
+        # if shape_type == 'rectangle':
+        #     category['id'] = int(len(self.de_label) + 101)
+        # if shape_type == 'polygon':
+        #     category['id'] = int(len(self.se_label) + 201)
+        # if shape_type == 'null':
+        #     category['id'] = int(len(self.se_label) + 1)
         category['name'] = label
 
         return category
@@ -179,7 +279,14 @@ class labelme2coco(object):
         return data_coco
 
     def save_json(self):
-        self.data_transfer()
+        # self.data_transfer()
+        if self.class_flage:
+            self.classification_label_transfer()
+        if self.det_flage:
+            self.detection_label_transfer()
+        if self.seg_flage:
+            self.segmentation_label_transfer()
+
         self.data_coco = self.data2coco()
 
         json.dump(self.data_coco, open(self.save_json_path, 'w', encoding='utf-8'), indent=4, separators=(',', ': '), cls=MyEncoder)
@@ -194,6 +301,7 @@ class labelme2coco(object):
         ys.sort()
         new_poinits = [[xs[0], ys[len(ys)-1]], [xs[len(xs)-1], ys[0]]]
         return new_poinits
+
 
 # type check when save json files
 class MyEncoder(json.JSONEncoder):
@@ -212,4 +320,5 @@ class MyEncoder(json.JSONEncoder):
 if __name__ == "__main__":
     labelme_folder = "tests/train2017/labelme_annot"
     save_json_path = "tests/train2017/test_coco.json"
-    labelme2coco(labelme_folder, save_json_path)
+    transfer_types = [0, 1, 2]
+    labelme2coco(labelme_folder, save_json_path, transfer_types)

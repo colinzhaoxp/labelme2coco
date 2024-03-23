@@ -1,0 +1,7 @@
+airplane
+bird
+car
+cat
+dog
+eat
+person
