@@ -62,6 +62,8 @@ forder4
 forder5
 ```
 
+Demo见 labelme2coco/test 文件中
+
 
 
 #### 运行文件修改
