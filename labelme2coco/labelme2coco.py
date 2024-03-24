@@ -27,7 +27,6 @@ class labelme2coco(object):
         self.width = 0
         self.directoryList = []
         self.num = 0
-        self.labelme_folder = labelme_folder
         self.class_flage = 0
         self.det_flage = 0
         self.seg_flage = 0
@@ -83,14 +82,14 @@ class labelme2coco(object):
         #             with open(full_path, 'r') as file:
         #                 for line in file:
         #                     self.seg_labels.append(line.strip())
-        self.save_json()
+        self.save_json(labelme_folder)
 
     #transfer classification label
-    def classification_label_transfer(self):
+    def classification_label_transfer(self, labelme_folder):
         for class_label in self.class_labels:
             # 遍历标签中的所有标签
             label = class_label
-            dir = os.path.join(self.labelme_folder, class_label)
+            dir = os.path.join(labelme_folder, class_label)
             for filename in os.listdir(dir):
                 # 判断是否为图片文件，这里假设是.jpg格式，可以根据实际需求修改
                 if filename.endswith('.jpg') or filename.endswith('.png'):  # 添加其他扩展名如 '.jpeg', '.gif', '.bmp' 等
@@ -98,7 +97,7 @@ class labelme2coco(object):
                     image = self.get_image(img_path, self.num)
                     self.images.append(image)
                     shape_type = 'null'
-                    points = [[0, self.height], [self.width, self.height]]
+                    points = [[0, self.height], [self.width, 0]]
                     if label not in self.label_list:
                         self.categories.append(self.category(label))
                         self.label_list.append(label)
@@ -106,18 +105,18 @@ class labelme2coco(object):
                     self.annID += 1
                     self.num += 1
 
-    def detection_label_transfer(self):
+    def detection_label_transfer(self, labelme_folder):
         for det_label in self.det_labels:
             # 遍历标签中的所有标签
-            det_dir = os.path.join(self.labelme_folder, det_label)
+            det_dir = os.path.join(labelme_folder, det_label)
         # get json list
         _, labelme_json = list_jsons_recursively(det_dir)
         self.data_transfer(labelme_json)
 
-    def segmentation_label_transfer(self):
+    def segmentation_label_transfer(self, labelme_folder):
         for seg_label in self.seg_labels:
             # 遍历标签中的所有标签
-            seg_dir = os.path.join(self.labelme_folder, seg_label)
+            seg_dir = os.path.join(labelme_folder, seg_label)
             # get json list
         _, labelme_json = list_jsons_recursively(seg_dir)
         self.data_transfer(labelme_json)
@@ -203,13 +202,12 @@ class labelme2coco(object):
 
         if shape_type == 'rectangle':
             annotation['bbox'] = list(map(float, self.getbbox(points)))
-
             # coarsely from bbox to segmentation
             x = annotation['bbox'][0]
             y = annotation['bbox'][1]
             w = annotation['bbox'][2]
             h = annotation['bbox'][3]
-            annotation['segmentation'] = [np.asarray(points).flatten().tolist()]
+            annotation['segmentation'] = [np.asarray(self.make_points2polygon(points)).flatten().tolist()]
 
         if shape_type == 'polygon':
             new_points = self.points_seg2bbox(points)
@@ -217,21 +215,26 @@ class labelme2coco(object):
             annotation['segmentation'] = [np.asarray(points).flatten().tolist()]
 
         if shape_type == 'null':
-            new_poinits = [[1, points[1][1]-1], [points[1][0]-1, points[1][1]-1]]
-            annotation['bbox'] = list(map(float, self.getbbox(new_poinits)))
+            new_points = [[1, points[0][1]-1], [points[1][0]-1, 1]]
+            annotation['bbox'] = list(map(float, self.getbbox(new_points)))
 
             # coarsely from bbox to segmentation
             x = annotation['bbox'][0]
             y = annotation['bbox'][1]
             w = annotation['bbox'][2]
             h = annotation['bbox'][3]
-            annotation['segmentation'] = [np.asarray(points).flatten().tolist()]
+            annotation['segmentation'] = [np.asarray(self.make_points2polygon(new_points)).flatten().tolist()]
 
         annotation['category_id'] = self.getcatid(label)
         annotation['id'] = int(self.annID)
         # add area info
         annotation['area'] = self.height * self.width  # the area is not used for detection
         return annotation
+
+   # 将分类、检测的坐标点修改成满足segmentation
+    def make_points2polygon(self, points):
+        seg_points = [[points[0][0], points[1][1]], points[0], [points[1][0], points[0][1]], points[1]]
+        return seg_points
 
     def getcatid(self, label):
         for categorie in self.categories:
@@ -278,14 +281,14 @@ class labelme2coco(object):
         data_coco['annotations'] = self.annotations
         return data_coco
 
-    def save_json(self):
+    def save_json(self, labelme_folder):
         # self.data_transfer()
         if self.class_flage:
-            self.classification_label_transfer()
+            self.classification_label_transfer(labelme_folder)
         if self.det_flage:
-            self.detection_label_transfer()
+            self.detection_label_transfer(labelme_folder)
         if self.seg_flage:
-            self.segmentation_label_transfer()
+            self.segmentation_label_transfer(labelme_folder)
 
         self.data_coco = self.data2coco()
 
