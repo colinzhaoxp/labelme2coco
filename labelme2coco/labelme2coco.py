@@ -133,12 +133,13 @@ class labelme2coco(object):
         for json_path in labelme_json:
             with open(json_path, 'r') as fp:
                 class_id = self.get_classlabel_dirname(json_path)
-                self.num += 1
+
                 # load json
                 data = json.load(fp)
 #                (prefix, res) = os.path.split(json_path)
 #                (file_name, extension) = os.path.splitext(res)
                 self.images.append(self.image(data, self.num, json_path))
+                self.num += 1
                 for shapes in data['shapes']:
                     label = shapes['label']
                     shape_type = shapes['shape_type']
