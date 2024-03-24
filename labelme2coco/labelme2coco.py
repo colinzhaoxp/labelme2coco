@@ -101,7 +101,7 @@ class labelme2coco(object):
                     if label not in self.label_list:
                         self.categories.append(self.category(label))
                         self.label_list.append(label)
-                    self.annotations.append(self.annotation(points, label, self.num, shape_type))
+                    self.annotations.append(self.annotation(points, label, self.num, shape_type, self.getcatid(label)))
                     self.annID += 1
                     self.num += 1
 
@@ -121,10 +121,18 @@ class labelme2coco(object):
         _, labelme_json = list_jsons_recursively(seg_dir)
         self.data_transfer(labelme_json)
 
-
+    #根据文件夹名称获取分类标签id
+    def get_classlabel_dirname(self, dir_path):
+        parent_dir = os.path.dirname(dir_path)
+        parent_dir_name = os.path.basename(parent_dir)
+        if parent_dir_name == 'label':
+            parent_dir = os.path.dirname(parent_dir)
+            parent_dir_name = os.path.basename(parent_dir)
+        return self.getcatid(parent_dir_name)
     def data_transfer(self, labelme_json):
         for json_path in labelme_json:
             with open(json_path, 'r') as fp:
+                class_id = self.get_classlabel_dirname(json_path)
                 self.num += 1
                 # load json
                 data = json.load(fp)
@@ -154,7 +162,7 @@ class labelme2coco(object):
                         self.label_list.append(label)
 
                     points = shapes['points']
-                    self.annotations.append(self.annotation(points, label, self.num, shape_type))
+                    self.annotations.append(self.annotation(points, label, self.num, shape_type, class_id))
                     self.annID += 1
 
     def image(self, data, num, json_path):
@@ -194,11 +202,12 @@ class labelme2coco(object):
 
         return category
 
-    def annotation(self, points, label, num, shape_type):
+    def annotation(self, points, label, num, shape_type, class_id):
         annotation = {}
         annotation['iscrowd'] = 0
         annotation['image_id'] = int(num + 1)
         annotation['shape_type'] = shape_type
+
 
         if shape_type == 'rectangle':
             annotation['bbox'] = list(map(float, self.getbbox(points)))
@@ -208,11 +217,14 @@ class labelme2coco(object):
             w = annotation['bbox'][2]
             h = annotation['bbox'][3]
             annotation['segmentation'] = [np.asarray(self.make_points2polygon(points)).flatten().tolist()]
+            annotation['class_id'] = class_id
 
         if shape_type == 'polygon':
             new_points = self.points_seg2bbox(points)
             annotation['bbox'] = list(map(float, self.getbbox(new_points)))
             annotation['segmentation'] = [np.asarray(points).flatten().tolist()]
+            annotation['class_id'] = class_id
+
 
         if shape_type == 'null':
             new_points = [[1, points[0][1]-1], [points[1][0]-1, 1]]
@@ -224,6 +236,8 @@ class labelme2coco(object):
             w = annotation['bbox'][2]
             h = annotation['bbox'][3]
             annotation['segmentation'] = [np.asarray(self.make_points2polygon(new_points)).flatten().tolist()]
+            annotation['class_id'] = self.getcatid(label)
+
 
         annotation['category_id'] = self.getcatid(label)
         annotation['id'] = int(self.annID)
