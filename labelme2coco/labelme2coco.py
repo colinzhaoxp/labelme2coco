@@ -96,6 +96,7 @@ class labelme2coco(object):
                     img_path = os.path.join(dir, filename)
                     image = self.get_image(img_path, self.num)
                     self.images.append(image)
+                    self.num += 1
                     shape_type = 'null'
                     points = [[0, self.height], [self.width, 0]]
                     if label not in self.label_list:
@@ -103,7 +104,7 @@ class labelme2coco(object):
                         self.label_list.append(label)
                     self.annotations.append(self.annotation(points, label, self.num, shape_type, self.getcatid(label)))
                     self.annID += 1
-                    self.num += 1
+
 
     def detection_label_transfer(self, labelme_folder):
         for det_label in self.det_labels:
@@ -206,7 +207,7 @@ class labelme2coco(object):
     def annotation(self, points, label, num, shape_type, class_id):
         annotation = {}
         annotation['iscrowd'] = 0
-        annotation['image_id'] = int(num + 1)
+        annotation['image_id'] = num
         annotation['shape_type'] = shape_type
 
 
