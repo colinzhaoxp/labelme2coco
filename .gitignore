@@ -1,2 +1,3 @@
-labelme2coco/__pycache_
+labelme2coco/__pycache__
 .idea
+.vscode
