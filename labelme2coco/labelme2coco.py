@@ -30,6 +30,7 @@ class labelme2coco(object):
         self.class_flage = 0
         self.det_flage = 0
         self.seg_flage = 0
+        self.img_name_list = []
         # create save dir
         save_json_dir = os.path.dirname(save_json_path)
         create_dir(save_json_dir)
@@ -94,15 +95,14 @@ class labelme2coco(object):
                 # 判断是否为图片文件，这里假设是.jpg格式，可以根据实际需求修改
                 if filename.endswith('.jpg') or filename.endswith('.png'):  # 添加其他扩展名如 '.jpeg', '.gif', '.bmp' 等
                     img_path = os.path.join(dir, filename)
-                    image = self.get_image(img_path, self.num)
-                    self.images.append(image)
-                    self.num += 1
+
+                    self.make_images(img_path)
                     shape_type = 'null'
                     points = [[0, self.height], [self.width, 0]]
                     if label not in self.label_list:
                         self.categories.append(self.category(label))
                         self.label_list.append(label)
-                    self.annotations.append(self.annotation(points, label, self.num, shape_type, self.getcatid(label)))
+                    self.annotations.append(self.annotation(points, label, os.path.splitext(filename)[0], shape_type, self.getcatid(label)))
                     self.annID += 1
 
 
@@ -122,25 +122,17 @@ class labelme2coco(object):
         _, labelme_json = list_jsons_recursively(seg_dir)
         self.data_transfer(labelme_json)
 
-    #根据文件夹名称获取分类标签id
-    def get_classlabel_dirname(self, dir_path):
-        parent_dir = os.path.dirname(dir_path)
-        parent_dir_name = os.path.basename(parent_dir)
-        if parent_dir_name == 'label':
-            parent_dir = os.path.dirname(parent_dir)
-            parent_dir_name = os.path.basename(parent_dir)
-        return self.getcatid(parent_dir_name)
     def data_transfer(self, labelme_json):
         for json_path in labelme_json:
             with open(json_path, 'r') as fp:
-                class_id = self.get_classlabel_dirname(json_path)
+                class_id = self.getcatid(self.get_dirname(json_path))
 
                 # load json
                 data = json.load(fp)
 #                (prefix, res) = os.path.split(json_path)
 #                (file_name, extension) = os.path.splitext(res)
-                self.images.append(self.image(data, self.num, json_path))
-                self.num += 1
+                self.path2images(data, json_path)
+                #self.num += 1
                 for shapes in data['shapes']:
                     label = shapes['label']
                     shape_type = shapes['shape_type']
@@ -164,31 +156,46 @@ class labelme2coco(object):
                         self.label_list.append(label)
 
                     points = shapes['points']
-                    self.annotations.append(self.annotation(points, label, self.num, shape_type, class_id))
+                    self.annotations.append(self.annotation(points, label, os.path.splitext(os.path.split(json_path)[1])[0], shape_type, class_id))
                     self.annID += 1
 
-    def image(self, data, num, json_path):
+        # 根据文件夹名称获取分类标签id
+
+    def get_dirname(self, dir_path):
+        parent_dir = os.path.dirname(dir_path)
+        parent_dir_name = os.path.basename(parent_dir)
+        if parent_dir_name == 'label':
+            parent_dir = os.path.dirname(parent_dir)
+            parent_dir_name = os.path.basename(parent_dir)
+        return parent_dir_name
+
+    def path2images(self, data, json_path):
         image = {}
         # get image path
         _, img_extension = os.path.splitext(data["imagePath"])
         image_path = json_path.replace(".json", img_extension)
+        self.make_images(image_path)
 
-        return self.get_image(image_path, num)
-
-    def get_image(self, image_path, num):
+    def make_images(self, image_path):
         image = {}
         img_shape = read_image_shape_as_dict(image_path)
         height, width = img_shape['height'], img_shape['width']
-
-        image['height'] = height
-        image['width'] = width
-        image['id'] = int(num + 1)
-        image['file_name'] = os.path.basename(image_path)
-
-        self.height = height
-        self.width = width
-
-        return image
+        img_name = os.path.splitext(image_path)[0]
+        if img_name not in self.img_name_list:
+            self.img_name_list.append(img_name)
+            self.num += 1
+            image['height'] = height
+            image['width'] = width
+            image['id'] = self.num
+            image['file_name'] = os.path.basename(image_path)
+            self.height = height
+            self.width = width
+            self.images.append(image)
+    def get_image_id(self, image_name):
+        for image_info in self.images:
+            if image_name == os.path.splitext(image_info['file_name'])[0]:
+                return image_info['id']
+        return -1
 
     def category(self, label):
         category = {}
@@ -204,10 +211,10 @@ class labelme2coco(object):
 
         return category
 
-    def annotation(self, points, label, num, shape_type, class_id):
+    def annotation(self, points, label, image_name, shape_type, class_id):
         annotation = {}
         annotation['iscrowd'] = 0
-        annotation['image_id'] = num
+        annotation['image_id'] = self.get_image_id(image_name)
         annotation['shape_type'] = shape_type
 
 
@@ -260,7 +267,7 @@ class labelme2coco(object):
             #     return categorie['id']
         return -1
 
-    def getbbox(self,points):
+    def getbbox(self, points):
         # img = np.zeros([self.height,self.width],np.uint8)
         # cv2.polylines(img, [np.asarray(points)], True, 1, lineType=cv2.LINE_AA)
         # cv2.fillPoly(img, [np.asarray(points)], 1)
