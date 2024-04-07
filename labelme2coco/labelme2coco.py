@@ -227,13 +227,18 @@ class labelme2coco(object):
             h = annotation['bbox'][3]
             annotation['segmentation'] = [np.asarray(self.make_points2polygon(points)).flatten().tolist()]
             annotation['class_id'] = class_id
+            annotation['area'] = annotation['bbox'][2] * annotation['bbox'][3]
 
         if shape_type == 'polygon':
             new_points = self.points_seg2bbox(points)
             annotation['bbox'] = list(map(float, self.getbbox(new_points)))
             annotation['segmentation'] = [np.asarray(points).flatten().tolist()]
             annotation['class_id'] = class_id
-
+            contour = np.array(points)
+            x = contour[:, 0]
+            y = contour[:, 1]
+            area = 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
+            annotation['area'] = area
 
         if shape_type == 'null':
             new_points = [[1, points[0][1]-1], [points[1][0]-1, 1]]
@@ -246,12 +251,12 @@ class labelme2coco(object):
             h = annotation['bbox'][3]
             annotation['segmentation'] = [np.asarray(self.make_points2polygon(new_points)).flatten().tolist()]
             annotation['class_id'] = self.getcatid(label)
+            annotation['area'] = self.height * self.width
 
 
         annotation['category_id'] = self.getcatid(label)
         annotation['id'] = int(self.annID)
         # add area info
-        annotation['area'] = self.height * self.width  # the area is not used for detection
         return annotation
 
    # 将分类、检测的坐标点修改成满足segmentation
