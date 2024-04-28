@@ -1,3 +1,5 @@
 labelme2coco/__pycache__
 .idea
 .vscode
+*.jpg
+*.json
