@@ -8,7 +8,8 @@ os.makedirs(save_dir_path, exist_ok=True)
 
 labelme_floder = r'./test'
 
-txt_path = os.path.join(labelme_floder, 'Classification.txt')
+# need_copy.txt文件中存放的是需要复制的文件夹名称，一行一个文件夹名
+txt_path = os.path.join(labelme_floder, 'need_copy.txt')
 
 with open(txt_path, 'r') as f:
     lines = f.readlines()
